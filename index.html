@@ -544,7 +544,7 @@ function buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, experime
   </div>`;
 }
 
-// ── Hemicycle drawing ──────────────────────────────────────
+// ── Waffle apportionment diagram (replicates app.R) ────────
 function drawHemicycle(svgId, seatData) {
   // seatData: [{party, seats}] sorted desc
   const svg = document.getElementById(svgId);
@@ -552,57 +552,42 @@ function drawHemicycle(svgId, seatData) {
   const total = seatData.reduce((s, d) => s + d.seats, 0);
   if (total === 0) return;
 
-  const W = 520, H = 280;
-  const cx = W / 2, cy = H - 10;
-  const rows = 4;
-  const rInner = 60, rOuter = 240;
-
-  // Build seat list in order
+  // Expand to one entry per seat, parties grouped together
   const seatList = [];
   seatData.forEach(d => {
     for (let i = 0; i < d.seats; i++) seatList.push(d.party);
   });
 
-  // Distribute seats across rows (outer rows have more)
-  const rowCounts = [];
-  const rowRadii = [];
-  for (let r = 0; r < rows; r++) {
-    rowRadii.push(rInner + (rOuter - rInner) * r / (rows - 1));
-  }
-  // Weight rows by circumference
-  const perimeter = rowRadii.map(r => r * Math.PI);
-  const totalPerim = perimeter.reduce((a, b) => a + b, 0);
-  let assigned = 0;
-  for (let r = 0; r < rows; r++) {
-    const count = r < rows - 1
-      ? Math.round(total * perimeter[r] / totalPerim)
-      : total - assigned;
-    rowCounts.push(count);
-    assigned += rowCounts[r];
-  }
+  const colN = Math.ceil(Math.sqrt(total * 2));
+  const cell = 18;  // tile size in SVG units
+  const gap  = 2;   // gap between tiles
+  const step = cell + gap;
+  const W = colN * step + gap;
+  const rowN = Math.ceil(total / colN);
+  const H = rowN * step + gap;
 
-  // Draw seats
-  const ns = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  let seatIdx = 0;
-  for (let r = 0; r < rows; r++) {
-    const rad = rowRadii[r];
-    const n = rowCounts[r];
-    for (let i = 0; i < n && seatIdx < seatList.length; i++, seatIdx++) {
-      const angle = Math.PI * (1 - i / (n - 1 || 1));
-      const x = cx + rad * Math.cos(Math.PI - angle);
-      const y = cy - rad * Math.sin(Math.PI - angle);
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      const dotR = Math.max(6, Math.min(12, 320 / Math.sqrt(total)));
-      circle.setAttribute('cx', x.toFixed(1));
-      circle.setAttribute('cy', y.toFixed(1));
-      circle.setAttribute('r', dotR.toFixed(1));
-      circle.setAttribute('fill', partyColor(seatList[seatIdx]));
-      circle.setAttribute('stroke', 'white');
-      circle.setAttribute('stroke-width', '0.8');
-      circle.setAttribute('title', seatList[seatIdx]);
-      svg.appendChild(circle);
-    }
-  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('style', 'width:100%;max-width:600px;height:auto;');
+
+  seatList.forEach((party, idx) => {
+    const col = idx % colN;
+    const row = Math.floor(idx / colN);
+    const x = gap + col * step;
+    const y = gap + row * step;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x);
+    rect.setAttribute('y', y);
+    rect.setAttribute('width', cell);
+    rect.setAttribute('height', cell);
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('fill', partyColor(party));
+    rect.setAttribute('stroke', 'white');
+    rect.setAttribute('stroke-width', '1');
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    t.textContent = party;
+    rect.appendChild(t);
+    svg.appendChild(rect);
+  });
 }
 
 function buildLegend(legendId, seatData) {
