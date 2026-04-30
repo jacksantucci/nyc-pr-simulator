@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulating Proportional Representation in NYC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<style>
+:root {
+  --nyc-blue:   #0033A0;
+  --nyc-orange: #FF6319;
+  --nyc-cream:  #F9F6F0;
+  --nyc-dark:   #1a1a2e;
+  --card-bg:    #ffffff;
+  --border:     #e0dcd4;
+  --text-main:  #2d2d2d;
+  --text-muted: #6b6b6b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Source Sans 3', sans-serif; background: var(--nyc-cream); color: var(--text-main); font-size: 16px; }
+
+/* ── Header ── */
+.app-header { background: var(--nyc-dark); color: white; padding: 1.1rem 1.4rem 0.9rem; border-bottom: 4px solid var(--nyc-orange); }
+.app-title { font-family: 'Playfair Display', Georgia, serif; font-size: clamp(1rem, 3.5vw, 1.45rem); font-weight: 800; margin: 0; line-height: 1.2; }
+.app-subtitle { font-size: 0.78rem; opacity: 0.7; margin-top: 0.25rem; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; flex-wrap: wrap; background: white; border-bottom: 2px solid var(--nyc-blue); padding: 0 0.5rem; gap: 0; overflow-x: auto; }
+.tab-btn { font-family: 'Source Sans 3', sans-serif; font-weight: 600; font-size: 0.88rem; color: var(--text-muted); border: none; background: transparent; padding: 0.6rem 0.9rem; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: color 0.15s; }
+.tab-btn:hover { color: var(--nyc-blue); }
+.tab-btn.active { color: var(--nyc-blue); border-bottom-color: var(--nyc-orange); }
+.tab-pane { display: none; padding: 1rem 0.5rem; max-width: 1100px; margin: 0 auto; }
+.tab-pane.active { display: block; }
+
+/* ── Cards ── */
+.pr-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.card-title { font-family: 'Playfair Display', Georgia, serif; font-size: 1.05rem; font-weight: 700; color: var(--nyc-blue); margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+
+/* ── Controls ── */
+.control-row { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-end; }
+.control-group { display: flex; flex-direction: column; gap: 0.2rem; }
+.control-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.radio-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.radio-group label { font-size: 0.88rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+input[type=range] { accent-color: var(--nyc-blue); width: 220px; max-width: 100%; }
+.slider-val { font-size: 0.85rem; color: var(--nyc-blue); font-weight: 600; margin-left: 0.4rem; }
+
+/* ── Metrics ── */
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; }
+.metric-card { background: var(--nyc-cream); border: 1px solid var(--border); border-left: 4px solid var(--nyc-orange); border-radius: 6px; padding: 0.6rem 0.8rem; }
+.metric-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem; line-height: 1.3; }
+.metric-value { font-size: 1.35rem; font-weight: 700; color: var(--nyc-blue); font-family: 'Playfair Display', Georgia, serif; }
+.metric-note { font-size: 0.7rem; font-style: italic; color: var(--text-muted); margin-top: 0.1rem; }
+
+/* ── Hemicycle ── */
+.hemicycle-wrap { display: flex; flex-direction: column; align-items: center; }
+.hemicycle-wrap svg { width: 100%; max-width: 520px; height: auto; }
+.plot-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; margin-top: 0.6rem; font-size: 0.84rem; justify-content: center; }
+.legend-item { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.legend-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+/* ── Borough headings ── */
+.borough-heading { font-family: 'Playfair Display', Georgia, serif; font-size: 0.95rem; font-weight: 700; color: var(--nyc-dark); margin: 1rem 0 0.4rem; padding-left: 0.5rem; border-left: 3px solid var(--nyc-orange); }
+
+/* ── Tables ── */
+.tbl-wrap { overflow-x: auto; font-size: 0.84rem; }
+.tbl-wrap table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.tbl-wrap table thead th { background: var(--nyc-dark); color: white; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; text-align: left; }
+.tbl-wrap table tbody td { padding: 0.3rem 0.5rem; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }
+.tbl-wrap table tbody tr:nth-child(even) { background: var(--nyc-cream); }
+.tbl-wrap table tbody tr:hover { background: #e8eaf6; }
+.tbl-5col th:nth-child(1), .tbl-5col td:nth-child(1) { width: 40%; }
+.tbl-5col th:nth-child(2), .tbl-5col td:nth-child(2) { width: 20%; }
+.tbl-5col th:nth-child(3), .tbl-5col td:nth-child(3) { width: 15%; }
+.tbl-5col th:nth-child(4), .tbl-5col td:nth-child(4) { width: 10%; }
+.tbl-5col th:nth-child(5), .tbl-5col td:nth-child(5) { width: 15%; }
+.tbl-5col-mmp th:nth-child(1), .tbl-5col-mmp td:nth-child(1) { width: 35%; }
+.tbl-5col-mmp th:nth-child(2), .tbl-5col-mmp td:nth-child(2) { width: 20%; }
+.tbl-5col-mmp th:nth-child(3), .tbl-5col-mmp td:nth-child(3) { width: 15%; }
+.tbl-5col-mmp th:nth-child(4), .tbl-5col-mmp td:nth-child(4) { width: 15%; }
+.tbl-5col-mmp th:nth-child(5), .tbl-5col-mmp td:nth-child(5) { width: 15%; }
+.tbl-7col th:nth-child(1), .tbl-7col td:nth-child(1) { width: 28%; }
+.tbl-7col th:nth-child(2), .tbl-7col td:nth-child(2) { width: 14%; }
+.tbl-7col th:nth-child(3), .tbl-7col td:nth-child(3) { width: 10%; }
+.tbl-7col th:nth-child(4), .tbl-7col td:nth-child(4) { width: 11%; }
+.tbl-7col th:nth-child(5), .tbl-7col td:nth-child(5) { width: 11%; }
+.tbl-7col th:nth-child(6), .tbl-7col td:nth-child(6) { width: 11%; }
+.tbl-7col th:nth-child(7), .tbl-7col td:nth-child(7) { width: 10%; }
+.tbl-3col th:nth-child(1), .tbl-3col td:nth-child(1) { width: 45%; }
+.tbl-3col th:nth-child(2), .tbl-3col td:nth-child(2) { width: 30%; }
+.tbl-3col th:nth-child(3), .tbl-3col td:nth-child(3) { width: 25%; }
+.tbl-ssd th:nth-child(1), .tbl-ssd td:nth-child(1) { width: 8%; }
+.tbl-ssd th:nth-child(2), .tbl-ssd td:nth-child(2) { width: 22%; }
+.tbl-ssd th:nth-child(3), .tbl-ssd td:nth-child(3) { width: 32%; }
+.tbl-ssd th:nth-child(4), .tbl-ssd td:nth-child(4) { width: 26%; }
+.tbl-ssd th:nth-child(5), .tbl-ssd td:nth-child(5) { width: 12%; }
+
+/* DataTables overrides */
+.dataTables_wrapper .dataTables_paginate .paginate_button { font-size: 0.82rem; }
+.dataTables_wrapper .dataTables_info { font-size: 0.78rem; color: var(--text-muted); }
+.dataTables_length select, .dataTables_filter input { font-size: 0.82rem; }
+table.dataTable thead th, table.dataTable thead td { text-align: left !important; }
+table.dataTable tbody td { text-align: left !important; }
+table.dataTable { font-size: 0.84rem; }
+table.dataTable thead th { background: var(--nyc-dark) !important; color: white !important; font-size: 0.78rem !important; text-transform: uppercase !important; letter-spacing: 0.04em !important; }
+table.dataTable.stripe tbody tr.odd { background: var(--nyc-cream); }
+
+/* ── More Info tab ── */
+.more-info-wrap { max-width: 720px; margin: 0 auto; padding: 0.5rem; }
+.more-info-wrap p { margin-bottom: 0.75rem; line-height: 1.6; font-size: 0.95rem; }
+.more-info-wrap ul { margin: 0.5rem 0 0.75rem 1.5rem; }
+.more-info-wrap li { margin-bottom: 0.3rem; font-size: 0.95rem; line-height: 1.5; }
+.more-info-wrap a { color: var(--nyc-blue); }
+.more-info-wrap a:hover { text-decoration: underline; }
+
+/* ── Experimental note ── */
+.exp-note { font-size: 0.82rem; font-style: italic; color: var(--text-muted); margin-bottom: 0.6rem; }
+
+/* ── Loading ── */
+#loading-screen { position: fixed; inset: 0; background: var(--nyc-dark); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 9999; transition: opacity 0.4s; }
+#loading-screen.hidden { opacity: 0; pointer-events: none; }
+.loading-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 0.5rem; }
+.loading-sub { font-size: 0.85rem; opacity: 0.6; }
+.loading-bar { width: 200px; height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; margin-top: 1.2rem; overflow: hidden; }
+.loading-fill { height: 100%; background: var(--nyc-orange); width: 0%; transition: width 0.3s; border-radius: 2px; }
+
+@media (max-width: 600px) {
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .pr-card { padding: 0.8rem; }
+  .app-title { font-size: 1rem; }
+  .plot-legend { font-size: 0.78rem; }
+  .tab-btn { font-size: 0.78rem; padding: 0.5rem 0.6rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading-screen">
+  <div class="loading-title">NYC PR Simulator</div>
+  <div class="loading-sub">Loading election data…</div>
+  <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+  <p class="app-title">Simulating proportional representation in NYC</p>
+  <p class="app-subtitle">Explore the results of the 2025 City Council elections</p>
+</header>
+
+<!-- Tab bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="fptp">First-Past-the-Post</button>
+  <button class="tab-btn" data-tab="olpr">Open-List PR</button>
+  <button class="tab-btn" data-tab="mmp">Mixed-Member PR</button>
+  <button class="tab-btn" data-tab="info">More Information</button>
+</nav>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- TAB 1: FPTP                                         -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="tab-pane active" id="tab-fptp">
+
+  <div class="pr-card">
+    <div class="card-title">Apportionment Diagram — Citywide</div>
+    <div class="hemicycle-wrap">
+      <svg id="fptp-hemi" viewBox="0 0 520 280"></svg>
+      <div class="plot-legend" id="fptp-legend"></div>
+    </div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Electoral Indices</div>
+    <div id="fptp-metrics"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Citywide Seat Totals</div>
+    <div class="tbl-wrap"><table id="fptp-city-tbl" class="display stripe" style="width:100%"></table></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Results by Borough</div>
+    <div id="fptp-borough-tables"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Single-Seat District Winners</div>
+    <div class="tbl-wrap"><table id="fptp-ssd-tbl" class="display stripe" style="width:100%"></table></div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- TAB 2: OLPR                                         -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-olpr">
+
+  <div class="pr-card">
+    <div class="card-title">Allocation Method</div>
+    <div class="radio-group">
+      <label><input type="radio" name="olpr-method" value="dhondt" checked> D'Hondt/Jefferson (favors large parties)</label>
+      <label><input type="radio" name="olpr-method" value="saintelague"> Sainte-Laguë/Webster (more proportional)</label>
+    </div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Apportionment Diagram — Citywide</div>
+    <div class="hemicycle-wrap">
+      <svg id="olpr-hemi" viewBox="0 0 520 280"></svg>
+      <div class="plot-legend" id="olpr-legend"></div>
+    </div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Electoral Indices</div>
+    <div id="olpr-metrics"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Citywide Seat Totals</div>
+    <div class="tbl-wrap"><table id="olpr-city-tbl" class="display stripe" style="width:100%"></table></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Seats by Borough</div>
+    <div id="olpr-borough-seat-tables"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Winning Candidates by Borough</div>
+    <div id="olpr-borough-cand-tables"></div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- TAB 3: MMP                                          -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-mmp">
+
+  <div class="pr-card">
+    <div class="card-title">Configuration</div>
+    <div class="control-row">
+      <div class="control-group" style="flex:1;min-width:220px;">
+        <span class="control-label">Assembly Size: 51 single-seat districts plus compensation seats</span>
+        <div style="display:flex;align-items:center;">
+          <input type="range" id="mmp-size" min="51" max="101" value="71" step="1">
+          <span class="slider-val" id="mmp-size-val">71</span>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Compensation Seat Allocation Method</span>
+        <div class="radio-group">
+          <label><input type="radio" name="mmp-method" value="dhondt" checked> D'Hondt/Jefferson (favors large parties)</label>
+          <label><input type="radio" name="mmp-method" value="saintelague"> Sainte-Laguë/Webster (more proportional)</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Apportionment Diagram — Citywide</div>
+    <div class="hemicycle-wrap">
+      <svg id="mmp-hemi" viewBox="0 0 520 280"></svg>
+      <div class="plot-legend" id="mmp-legend"></div>
+    </div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Electoral Indices</div>
+    <p class="exp-note">Note: SPM-expected values for the largest party seat share and effective number of parties are experimental. See the "More Information" tab for details.</p>
+    <div id="mmp-metrics"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Citywide Seat Totals</div>
+    <div class="tbl-wrap"><table id="mmp-city-tbl" class="display stripe" style="width:100%"></table></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Results by Borough</div>
+    <div id="mmp-borough-tables"></div>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Single-Seat District Winners</div>
+    <div class="tbl-wrap"><table id="mmp-ssd-tbl" class="display stripe" style="width:100%"></table></div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- TAB 4: MORE INFORMATION                             -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="tab-info">
+<div class="more-info-wrap">
+
+  <div class="pr-card">
+    <div class="card-title">About This App</div>
+    <p>This page is an interactive companion to a forthcoming report titled <a href="https://www.manhattan.institute/policy/cities" target="_blank"><em>Understanding How Proportional Representation Might Work in New York City.</em></a> That report uses the results of the 2025 City Council elections to simulate two forms of proportional representation (PR) detailed in an earlier report, <a href="https://manhattan.institute/article/reforming-big-city-elections" target="_blank"><em>Reforming Big-City Elections</em></a>. One of these, mixed-member PR (MMP), incorporates the current single-seat districts and allocates seats to parties in proportion to their vote shares using citywide &#8220;compensation seats.&#8221; The second, open-list PR, allocates seats to parties in proportion to their vote shares at the borough level. Seats then go to a party&#8217;s candidates in descending order of their vote totals.</p>
+    <p>Users of this website can adjust various features of each system. One is the number of compensation seats in MMP. In both systems, they also can decide which PR formula to use to allocate seats to parties: D&#8217;Hondt/Jefferson, which benefits larger parties, or Sainte-Lagu&#235;/Webster, which provides more overall proportionality of seats to votes (Gallagher 1991).</p>
+    <p>In addition, the site reports five indices of overall system performance. The Gallagher index describes overall seats/votes proportionality. Two more indices say how much fragmentation should be expected from the electoral system based only on its most basic design features. The two final indices say how much fragmentation there is in practice, given the observed votes.</p>
+    <p>This site is a project of <a href="https://www.jacksantucci.com" target="_blank">Jack Santucci,</a> Professorial Lecturer at the George Washington University and Part-time Lecturer at NYU Washington, DC. The <a href="https://manhattan.institute/policy/cities" target="_blank">Manhattan Institute</a> generously supported its development.</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">About the Data</div>
+    <p>The data for each simulation are housed in CSV files on <a href="https://github.com/jacksantucci/nyc-pr/" target="_blank">GitHub</a> along with the raw data and R code used to produce each. The raw data were district-level returns (or borough portions for the four crossover districts) downloaded from the <a href="https://www.vote.nyc/page/election-results-summary-2025" target="_blank">NYC Board of Elections</a> on February 10, 2026.</p>
+    <p>Write-in candidates appear in the underlying data and are treated as follows. Because each write-in candidate received votes under a unique label, each is counted as a distinct party when computing the observed ENP(votes). Write-in candidates are excluded from the observed ENP(seats) and the Gallagher index, since they are ineligible to win seats, and they do not appear in any of the results tables.</p>
+    <p>Results for first-past-the-post are calculated from the district-level data. Thus the list of winners, their party endorsements, and any derivative measures may differ from the current situation (due, e.g., to vacancies, party switching, and so on).</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">About the Electoral Indices</div>
+    <p><strong>Proportionality.</strong> Two indices describe how proportionally votes translate into seats. The Gallagher (1991) index summarises the overall gap between vote shares and seat shares across all parties; lower values indicate a more proportional outcome. The largest party seat share is a direct measure of how concentrated legislative power is in the leading party. For both indices, the app reports the observed value alongside the expectation from the Seat Product Model (SPM; Shugart and Taagepera 2017).</p>
+    <p><strong>Fragmentation.</strong> Four indices describe how fragmented the party system is. The effective number of parties (ENP; Laakso and Taagepera 1979) is a standard measure that weights parties by their size; higher values indicate more parties sharing votes or seats in a meaningful way. The app reports observed ENP separately for votes and seats, alongside SPM-expected values for each (Shugart and Taagepera 2017). The SPM derives these expectations from the structural parameters of the electoral system alone&#8212;without reference to any election&#8217;s actual results&#8212;providing a benchmark against which observed outcomes can be compared.</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">First-Past-the-Post</div>
+    <p>The FPTP tab uses the simple SPM for single-tier systems (Shugart and Taagepera 2017). With all seats elected in single-seat districts, the mean district magnitude M&nbsp;=&nbsp;1 and the assembly size S equals the number of districts. The seat product is therefore M&nbsp;&times;&nbsp;S&nbsp;=&nbsp;S. The expected values are:</p>
+    <ul>
+      <li>Largest party seat share: s1 = S<sup>&minus;1/8</sup></li>
+      <li>ENP(seats) = S<sup>1/6</sup></li>
+      <li>ENP(votes) = S<sup>1/4</sup></li>
+    </ul>
+    <p>With <strong>51 single-seat districts</strong>, the expected ENP(seats) is <strong>1.93</strong> and ENP(votes) is <strong>2.67</strong>.</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Mixed-Member PR</div>
+    <p>The MMP tab uses an <strong>experimental</strong> version of the extended SPM for two-tier systems (Shugart 2024), which updates the version in Shugart and Taagepera (2017, eq.&nbsp;15.2). The basic tier consists of the same <strong>51 single-seat districts</strong> as under FPTP (M&nbsp;=&nbsp;1). The tier ratio t is the share of the total assembly allocated as compensatory seats, which varies with the assembly-size slider. The expected values are computed as follows:</p>
+    <ul>
+      <li>Compensation coefficient: c&nbsp;=&nbsp;1&nbsp;&minus;&nbsp;0.38&nbsp;&times;&nbsp;S<sub>B</sub><sup>1/10</sup></li>
+      <li>Largest party seat share: s1&nbsp;=&nbsp;(1&nbsp;&minus;&nbsp;t)<sup>c</sup>&nbsp;&times;&nbsp;S<sub>B</sub><sup>&minus;1/8</sup></li>
+      <li>ENP(seats)&nbsp;=&nbsp;s1<sup>&minus;4/3</sup></li>
+      <li>ENP(votes)&nbsp;=&nbsp;(ENP(seats)<sup>1.5</sup>&nbsp;+&nbsp;1)<sup>2/3</sup></li>
+    </ul>
+    <p>where S<sub>B</sub> is the number of basic-tier seats (always&nbsp;51) and t&nbsp;=&nbsp;compensation seats&nbsp;&divide;&nbsp;total assembly size. When the slider is set to 51 (no compensation seats), t&nbsp;=&nbsp;0 and the formula reduces to the simple FPTP expectation. Note that c depends only on S<sub>B</sub> and is therefore fixed at <strong>0.437</strong> for this app.</p>
+    <p>Shugart (2024) notes that c typically falls in the range of 0.2&#8211;0.33 for systems with larger basic tiers. For this app, with a basic tier of only 51 seats&#8212;small by international standards&#8212;c computes to 0.437, which is somewhat above that range. This is consistent with the model&#8217;s logic: smaller basic tiers give compensation seats greater leverage, pushing c higher. Users should bear this in mind when interpreting the MMP expected values.</p>
+    <p><em>Note: the extended SPM for two-tier systems is still in development. The blog post about Wales (Shugart 2024) reflects the latest published thinking on it.</em></p>
+    <p>The ENP(votes) formula used here, N<sub>V</sub>&nbsp;=&nbsp;(N<sub>S</sub><sup>1.5</sup>&nbsp;+&nbsp;1)<sup>2/3</sup>, is the general logical relationship between N<sub>S</sub> and N<sub>V</sub> developed in Shugart and Taagepera (2017). For the FPTP and OLPR tabs, where the simple SPM applies, this reduces to the approximation N<sub>V</sub>&nbsp;&#8776;&nbsp;(MS)<sup>1/4</sup>.</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">Open-List PR</div>
+    <p>The OLPR tab uses the simple SPM for single-tier systems (Shugart and Taagepera 2017), applied at the borough level. Each borough functions as a multi-seat district; the mean district magnitude M is the average number of seats per borough, and S is the total number of seats across all boroughs. The expected values are:</p>
+    <ul>
+      <li>Largest party seat share: s1 = (M &times; S)<sup>&minus;1/8</sup></li>
+      <li>ENP(seats) = (M &times; S)<sup>1/6</sup></li>
+      <li>ENP(votes) = (M &times; S)<sup>1/4</sup></li>
+    </ul>
+    <p>With a mean district magnitude of <strong>10.2</strong> seats and a total assembly size of <strong>51</strong> seats, the seat product is <strong>520</strong>. The expected ENP(seats) is <strong>2.84</strong> and ENP(votes) is <strong>4.78</strong>. Note that these values are fixed regardless of which allocation method is selected, since the SPM depends only on district structure, not on the allocation formula.</p>
+    <p>The number of seats allocated to each borough (its district magnitude, M) is determined as follows. First, the borough keeps all single-seat districts within its lines. Second, four of the original 51 single-seat districts straddle borough lines. For each such crossover district, the underlying data report vote totals separately for each borough&#8217;s portion of the district. The seat for that district is assigned to whichever borough contributed the most votes. Each borough then retains only the votes cast within its own portion of any crossover district. The resulting seat counts are: Manhattan&nbsp;10, Brooklyn&nbsp;16, Queens&nbsp;14, Bronx&nbsp;8, Staten Island&nbsp;3.</p>
+  </div>
+
+  <div class="pr-card">
+    <div class="card-title">References</div>
+    <p>Gallagher, Michael. 1991. &#8220;Proportionality, disproportionality and electoral systems.&#8221; <em>Electoral Studies</em> 10 (1): 33&#8211;51. <a href="https://doi.org/10.1016/0261-3794(91)90004-C" target="_blank">https://doi.org/10.1016/0261-3794(91)90004-C</a></p>
+    <p>Laakso, Markku, and Rein Taagepera. 1979. &#8220;&#8216;Effective&#8217; number of parties: a measure with application to West Europe.&#8221; <em>Comparative Political Studies</em> 12 (1): 3&#8211;27. <a href="https://doi.org/10.1177/001041407901200101" target="_blank">https://doi.org/10.1177/001041407901200101</a></p>
+    <p>Shugart, Matthew S. 2024. &#8220;What does the Seat Product Model say about the Welsh electoral reform?&#8221; <em>Fruits and Votes</em> (blog), June 27. <a href="https://fruitsandvotes.wordpress.com/2024/06/27/what-does-the-seat-product-model-say-about-the-welsh-electoral-reform/" target="_blank">https://fruitsandvotes.wordpress.com/2024/06/27/what-does-the-seat-product-model-say-about-the-welsh-electoral-reform/</a></p>
+    <p>Shugart, Matthew S., and Rein Taagepera. 2017. <em>Votes from Seats: Logical Models of Electoral Systems</em>. Cambridge University Press. <a href="https://www.cambridge.org/core/books/votes-from-seats/" target="_blank">https://www.cambridge.org/core/books/votes-from-seats/</a></p>
+  </div>
+
+</div>
+</div><!-- end tab-info -->
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- SCRIPTS                                             -->
+<!-- ════════════════════════════════════════════════════ -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script>
+'use strict';
+
+// ── Constants ──────────────────────────────────────────────
+const BOROUGH_SEATS_OLPR = {Manhattan:10, Brooklyn:16, Queens:14, Bronx:8, "Staten Island":3};
+const BOROUGH_ORDER = ["Manhattan","Brooklyn","Queens","Bronx","Staten Island","crossover districts"];
+const N_DISTRICTS = 51;
+
+const COUNTY_TO_BOROUGH = {
+  "New York County": "Manhattan",
+  "Kings County": "Brooklyn",
+  "Queens County": "Queens",
+  "Bronx County": "Bronx",
+  "Richmond County": "Staten Island",
+  "Bronx County and Queens County": "crossover districts",
+  "Kings County and Queens County": "crossover districts",
+  "Kings County and Richmond County": "crossover districts",
+  "Bronx County and New York County": "crossover districts"
+};
+
+const KNOWN_COLORS = {
+  "Democratic": "#232066",
+  "Democrat": "#232066",
+  "Democratic and Working Families": "#3a3a8a",
+  "Democratic and Conservative": "#5a4a80",
+  "Democratic/Law & Order and Conservative": "#4a3a70",
+  "Republican": "#E81B23",
+  "Republican and Conservative": "#c0141a",
+  "Republican and Trump MAGA": "#d01820",
+  "Republican and United Alliance": "#b01015",
+  "Working Families and New North Shore": "#f4821f",
+  "Conservative": "#943ec6",
+  "Conservative and United Alliance": "#7a30aa",
+  "Green": "#17aa5c",
+  "Liberal": "#d4aa00",
+  "Libertarian": "#f5c518",
+  "Independence": "#00868b",
+  "Reform": "#8b4513",
+  "A Blue Collar/Fight and Deliver": "#2196F3",
+  "The Unity": "#009688",
+  "United Alliance": "#607D8B",
+  "Asians United": "#E91E63",
+  "Asians United/F.A.F.O.": "#C2185B",
+  "Revive East Side": "#FF5722",
+  "West Side United": "#795548",
+  "CleanSafeStreet": "#4CAF50",
+  "Safe&Affordable": "#8BC34A",
+  "Safe&Affordable/Stop The Casino": "#689F38",
+  "Voters First": "#03A9F4",
+  "Patriot Workers": "#FF9800",
+  "Patriot Party": "#F57C00",
+  "Freedom": "#9C27B0",
+  "TAMARA": "#aaaaaa"
+};
+
+const EXTRA_PALETTE = [
+  "#e41a1c","#377eb8","#4daf4a","#984ea3","#ff7f00",
+  "#a65628","#f781bf","#999999","#66c2a5","#fc8d62",
+  "#8da0cb","#e78ac3","#a6d854","#ffd92f","#e5c494"
+];
+
+let partyPalette = {...KNOWN_COLORS};
+let extraIdx = 0;
+
+function partyColor(party) {
+  if (partyPalette[party]) return partyPalette[party];
+  const col = EXTRA_PALETTE[extraIdx % EXTRA_PALETTE.length];
+  extraIdx++;
+  partyPalette[party] = col;
+  return col;
+}
+
+function normBorough(raw) {
+  return COUNTY_TO_BOROUGH[raw] || raw;
+}
+
+function isWriteIn(party) {
+  return /^Write-In/i.test(party);
+}
+
+// ── Number formatting ──────────────────────────────────────
+function fmtVotes(n) { return n.toLocaleString('en-US'); }
+function fmtPct(x) { return (x * 100).toFixed(1) + '%'; }
+function fmtNum(x) {
+  if (!isFinite(x) || isNaN(x)) return '—';
+  return x.toFixed(2);
+}
+function fmtPct2(x) {
+  if (!isFinite(x) || isNaN(x)) return '—';
+  return (x * 100).toFixed(1) + '%';
+}
+
+// ── Seat allocation ────────────────────────────────────────
+function dhondt(votes, m, initialSeats) {
+  const n = votes.length;
+  const seats = initialSeats ? [...initialSeats] : new Array(n).fill(0);
+  const quot = votes.map((v, i) => v / (seats[i] + 1));
+  for (let i = 0; i < m; i++) {
+    let winner = 0;
+    for (let j = 1; j < n; j++) if (quot[j] > quot[winner]) winner = j;
+    seats[winner]++;
+    quot[winner] = votes[winner] / (seats[winner] + 1);
+  }
+  return seats;
+}
+
+function saintelague(votes, m, initialSeats) {
+  const n = votes.length;
+  const seats = initialSeats ? [...initialSeats] : new Array(n).fill(0);
+  const quot = votes.map((v, i) => v / (2 * seats[i] + 1));
+  for (let i = 0; i < m; i++) {
+    let winner = 0;
+    for (let j = 1; j < n; j++) if (quot[j] > quot[winner]) winner = j;
+    seats[winner]++;
+    quot[winner] = votes[winner] / (2 * seats[winner] + 1);
+  }
+  return seats;
+}
+
+function allocate(votes, m, method, initialSeats) {
+  if (m <= 0) return initialSeats ? [...initialSeats] : new Array(votes.length).fill(0);
+  return method === 'dhondt' ? dhondt(votes, m, initialSeats) : saintelague(votes, m, initialSeats);
+}
+
+// ── Electoral indices ──────────────────────────────────────
+function gallagherIndex(vShares, sShares) {
+  let sum = 0;
+  const parties = new Set([...Object.keys(vShares), ...Object.keys(sShares)]);
+  parties.forEach(p => {
+    const v = vShares[p] || 0, s = sShares[p] || 0;
+    sum += (v - s) ** 2;
+  });
+  return Math.sqrt(0.5 * sum) * 100;
+}
+
+function effectiveNumber(shares) {
+  let sum = 0;
+  Object.values(shares).forEach(s => { if (s > 0) sum += s * s; });
+  return sum > 0 ? 1 / sum : NaN;
+}
+
+// SPM functions
+function spmS1(M, S) { return (M * S) ** (-1/8); }
+function spmEnSeats(M, S) { return (M * S) ** (1/6); }
+function spmEnVotes(M, S) { return (M * S) ** (1/4); }
+
+// Extended SPM for MMP (Shugart 2024)
+function spmMmpC(SB) { return 1 - 0.38 * SB ** (1/10); }
+function spmMmpS1(SB, t) { return (1 - t) ** spmMmpC(SB) * SB ** (-1/8); }
+function spmMmpEnSeats(SB, t) { return spmMmpS1(SB, t) ** (-4/3); }
+function spmMmpEnVotes(SB, t) { return (spmMmpEnSeats(SB, t) ** 1.5 + 1) ** (2/3); }
+
+// ── Metrics HTML ───────────────────────────────────────────
+function buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, experimental) {
+  const expTag = experimental ? '<span class="metric-note">experimental</span>' : '';
+  return `
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Gallagher Index</div>
+      <div class="metric-value">${fmtNum(gi)}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Lgst. party seat % — SPM expected</div>
+      <div class="metric-value">${fmtPct2(s1Exp)}</div>
+      ${expTag}
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Lgst. party seat % — observed</div>
+      <div class="metric-value">${fmtPct2(s1Obs)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Eff. N parties (votes) — SPM expected</div>
+      <div class="metric-value">${fmtNum(enVExp)}</div>
+      ${expTag}
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Eff. N parties (votes) — observed</div>
+      <div class="metric-value">${fmtNum(enVObs)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Eff. N parties (seats) — SPM expected</div>
+      <div class="metric-value">${fmtNum(enSExp)}</div>
+      ${expTag}
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Eff. N parties (seats) — observed</div>
+      <div class="metric-value">${fmtNum(enSObs)}</div>
+    </div>
+  </div>`;
+}
+
+// ── Hemicycle drawing ──────────────────────────────────────
+function drawHemicycle(svgId, seatData) {
+  // seatData: [{party, seats}] sorted desc
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = '';
+  const total = seatData.reduce((s, d) => s + d.seats, 0);
+  if (total === 0) return;
+
+  const W = 520, H = 280;
+  const cx = W / 2, cy = H - 10;
+  const rows = 4;
+  const rInner = 60, rOuter = 240;
+
+  // Build seat list in order
+  const seatList = [];
+  seatData.forEach(d => {
+    for (let i = 0; i < d.seats; i++) seatList.push(d.party);
+  });
+
+  // Distribute seats across rows (outer rows have more)
+  const rowCounts = [];
+  const rowRadii = [];
+  for (let r = 0; r < rows; r++) {
+    rowRadii.push(rInner + (rOuter - rInner) * r / (rows - 1));
+  }
+  // Weight rows by circumference
+  const perimeter = rowRadii.map(r => r * Math.PI);
+  const totalPerim = perimeter.reduce((a, b) => a + b, 0);
+  let assigned = 0;
+  for (let r = 0; r < rows; r++) {
+    const count = r < rows - 1
+      ? Math.round(total * perimeter[r] / totalPerim)
+      : total - assigned;
+    rowCounts.push(count);
+    assigned += rowCounts[r];
+  }
+
+  // Draw seats
+  const ns = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  let seatIdx = 0;
+  for (let r = 0; r < rows; r++) {
+    const rad = rowRadii[r];
+    const n = rowCounts[r];
+    for (let i = 0; i < n && seatIdx < seatList.length; i++, seatIdx++) {
+      const angle = Math.PI * (1 - i / (n - 1 || 1));
+      const x = cx + rad * Math.cos(Math.PI - angle);
+      const y = cy - rad * Math.sin(Math.PI - angle);
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      const dotR = Math.max(3.5, Math.min(7, 240 / Math.sqrt(total)));
+      circle.setAttribute('cx', x.toFixed(1));
+      circle.setAttribute('cy', y.toFixed(1));
+      circle.setAttribute('r', dotR.toFixed(1));
+      circle.setAttribute('fill', partyColor(seatList[seatIdx]));
+      circle.setAttribute('stroke', 'white');
+      circle.setAttribute('stroke-width', '0.8');
+      circle.setAttribute('title', seatList[seatIdx]);
+      svg.appendChild(circle);
+    }
+  }
+}
+
+function buildLegend(legendId, seatData) {
+  const el = document.getElementById(legendId);
+  el.innerHTML = seatData.filter(d => d.seats > 0).map(d =>
+    `<span class="legend-item">
+      <span class="legend-swatch" style="background:${partyColor(d.party)}"></span>
+      ${d.party} (${d.seats})
+    </span>`
+  ).join('');
+}
+
+// ── Table helpers ──────────────────────────────────────────
+function buildBoroughTable(data, cols, cls) {
+  if (!data || data.length === 0) return '';
+  const headers = cols.map(c => `<th>${c.label}</th>`).join('');
+  const rows = data.map(row =>
+    '<tr>' + cols.map(c => `<td>${row[c.key] ?? ''}</td>`).join('') + '</tr>'
+  ).join('');
+  return `<div class="tbl-wrap"><table class="${cls}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function boroughSection(boroughs, dataFn, cols, cls) {
+  let html = '';
+  BOROUGH_ORDER.filter(b => boroughs.includes(b)).forEach(b => {
+    const rows = dataFn(b);
+    if (!rows || rows.length === 0) return;
+    html += `<div class="borough-heading">${b}</div>` + buildBoroughTable(rows, cols, cls);
+  });
+  return html;
+}
+
+// ── DataTable helpers ──────────────────────────────────────
+const dtInstances = {};
+function renderDT(tableId, cols, data, extraOpts) {
+  if (dtInstances[tableId]) {
+    dtInstances[tableId].destroy();
+    $('#' + tableId).empty();
+  }
+  dtInstances[tableId] = $('#' + tableId).DataTable({
+    data,
+    columns: cols.map(c => ({title: c.label, data: c.key})),
+    pageLength: 25,
+    order: [],
+    scrollX: true,
+    ...extraOpts
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// DATA & COMPUTATION
+// ══════════════════════════════════════════════════════════
+
+let MMP_RAW = [], OLPR_RAW = [];
+
+async function loadData() {
+  setLoadProgress(20);
+  const [mmpResp, olprResp] = await Promise.all([
+    fetch('mmp_data.json'),
+    fetch('olpr_data.json')
+  ]);
+  setLoadProgress(60);
+  MMP_RAW = await mmpResp.json();
+  OLPR_RAW = await olprResp.json();
+  setLoadProgress(90);
+  initApp();
+  setLoadProgress(100);
+  setTimeout(() => {
+    document.getElementById('loading-screen').classList.add('hidden');
+  }, 300);
+}
+
+function setLoadProgress(pct) {
+  document.getElementById('loading-fill').style.width = pct + '%';
+}
+
+// ── FPTP ───────────────────────────────────────────────────
+function computeFptp() {
+  const winners = MMP_RAW.filter(r => r['ssd.win'] === 1);
+  const recognised = MMP_RAW.filter(r => !isWriteIn(r.party));
+
+  // Citywide vote totals (recognised)
+  const cityVotes = {};
+  recognised.forEach(r => { cityVotes[r.party] = (cityVotes[r.party] || 0) + r.votes; });
+
+  // District seats by party
+  const distSeats = {};
+  winners.forEach(r => { distSeats[r.party] = (distSeats[r.party] || 0) + 1; });
+
+  // City result
+  const cityResult = Object.entries(cityVotes).map(([party, votes]) => ({
+    party, votes, seats: distSeats[party] || 0
+  }));
+  const totalVotes = Object.values(cityVotes).reduce((a, b) => a + b, 0);
+  const totalSeats = winners.length;
+  cityResult.forEach(r => {
+    r.vote_pct = r.votes / totalVotes;
+    r.seat_pct = r.seats / totalSeats;
+  });
+
+  // Borough breakdown
+  const boroughVotes = {};
+  recognised.forEach(r => {
+    const b = normBorough(r.borough);
+    if (!boroughVotes[b]) boroughVotes[b] = {};
+    boroughVotes[b][r.party] = (boroughVotes[b][r.party] || 0) + r.votes;
+  });
+  const boroughSeats = {};
+  winners.forEach(r => {
+    const b = normBorough(r.borough);
+    if (!boroughSeats[b]) boroughSeats[b] = {};
+    boroughSeats[b][r.party] = (boroughSeats[b][r.party] || 0) + 1;
+  });
+
+  // SSD table
+  const ssdTable = winners.map(r => ({
+    district: r.district,
+    borough: r.borough,
+    candidate: r.candidate,
+    party: r.party,
+    votes: r.votes
+  }));
+
+  // District totals for vote %
+  const distTotals = {};
+  MMP_RAW.forEach(r => { distTotals[r.district] = (distTotals[r.district] || 0) + r.votes; });
+  ssdTable.forEach(r => { r.vote_pct = r.votes / distTotals[r.district]; });
+  ssdTable.sort((a, b) => a.borough.localeCompare(b.borough) || a.district - b.district);
+
+  // All votes including write-ins for ENP(votes)
+  const allVotes = {};
+  MMP_RAW.forEach(r => { allVotes[r.party] = (allVotes[r.party] || 0) + r.votes; });
+  const allTotal = Object.values(allVotes).reduce((a, b) => a + b, 0);
+  const allShares = {};
+  Object.entries(allVotes).forEach(([p, v]) => { allShares[p] = v / allTotal; });
+
+  return { cityResult, cityVotes, totalVotes, totalSeats, boroughVotes, boroughSeats, ssdTable, allShares, distTotals };
+}
+
+// ── OLPR ───────────────────────────────────────────────────
+function computeOlpr(method) {
+  const boroughs = Object.keys(BOROUGH_SEATS_OLPR);
+  const results = {};
+
+  boroughs.forEach(borough => {
+    const countyName = Object.entries(COUNTY_TO_BOROUGH).find(([k, v]) => v === borough)?.[0];
+    const slot = OLPR_RAW.filter(r => r.borough === countyName);
+    const m = BOROUGH_SEATS_OLPR[borough];
+
+    // Aggregate votes by party
+    const partyVotes = {};
+    slot.forEach(r => {
+      if (!isWriteIn(r.party)) {
+        partyVotes[r.party] = (partyVotes[r.party] || 0) + r.votes;
+      }
+    });
+    // Include write-ins grouped
+    slot.forEach(r => {
+      if (isWriteIn(r.party)) {
+        partyVotes[r.party] = (partyVotes[r.party] || 0) + r.votes;
+      }
+    });
+
+    const parties = Object.keys(partyVotes);
+    const votes = parties.map(p => partyVotes[p]);
+    const seatArr = allocate(votes, m, method);
+
+    const listSummary = {};
+    parties.forEach((p, i) => { listSummary[p] = seatArr[i]; });
+
+    // Candidate allocation (within non-write-in parties)
+    const candidates = {};
+    slot.forEach(r => {
+      if (!isWriteIn(r.party)) {
+        if (!candidates[r.party]) candidates[r.party] = [];
+        candidates[r.party].push({candidate: r.candidate, votes: r.votes});
+      }
+    });
+    Object.values(candidates).forEach(arr => arr.sort((a, b) => b.votes - a.votes));
+
+    const winners = [];
+    const generics = [];
+    parties.forEach(p => {
+      if (isWriteIn(p)) return;
+      const nWin = listSummary[p] || 0;
+      const slate = candidates[p] || [];
+      const nCands = slate.length;
+      const actualWins = Math.min(nWin, nCands);
+      for (let i = 0; i < actualWins; i++) {
+        winners.push({candidate: slate[i].candidate, party: p, votes: slate[i].votes});
+      }
+      if (nWin > nCands) {
+        generics.push({candidate: `Generic Winner (×${nWin - nCands})`, party: p, votes: null});
+      }
+    });
+
+    results[borough] = { listSummary, winners, generics, partyVotes };
+  });
+
+  // Aggregate citywide
+  const citySeats = {}, cityVotes = {};
+  Object.values(results).forEach(({listSummary, partyVotes}) => {
+    Object.entries(listSummary).forEach(([p, s]) => {
+      if (!isWriteIn(p)) citySeats[p] = (citySeats[p] || 0) + s;
+    });
+    Object.entries(partyVotes).forEach(([p, v]) => {
+      if (!isWriteIn(p)) cityVotes[p] = (cityVotes[p] || 0) + v;
+    });
+  });
+
+  // All votes including write-ins for ENP(votes)
+  const allVotes = {};
+  OLPR_RAW.forEach(r => { allVotes[r.party] = (allVotes[r.party] || 0) + r.votes; });
+  const allTotal = Object.values(allVotes).reduce((a, b) => a + b, 0);
+  const allShares = {};
+  Object.entries(allVotes).forEach(([p, v]) => { allShares[p] = v / allTotal; });
+
+  return { results, citySeats, cityVotes, allShares };
+}
+
+// ── MMP ────────────────────────────────────────────────────
+function computeMmp(assemblySize, method) {
+  const winners = MMP_RAW.filter(r => r['ssd.win'] === 1);
+  const nDistricts = winners.length;
+  const nComp = Math.max(0, assemblySize - nDistricts);
+
+  const distSeats = {};
+  winners.forEach(r => { distSeats[r.party] = (distSeats[r.party] || 0) + 1; });
+
+  const recognised = MMP_RAW.filter(r => !isWriteIn(r.party));
+  const cityVotes = {};
+  recognised.forEach(r => { cityVotes[r.party] = (cityVotes[r.party] || 0) + r.votes; });
+
+  const parties = Object.keys(cityVotes);
+  const votes = parties.map(p => cityVotes[p]);
+  const distAligned = parties.map(p => distSeats[p] || 0);
+
+  let compSeats;
+  if (nComp > 0) {
+    const totalAlloc = allocate(votes, nComp, method, distAligned);
+    compSeats = totalAlloc.map((t, i) => Math.max(0, t - distAligned[i]));
+  } else {
+    compSeats = new Array(parties.length).fill(0);
+  }
+
+  const cityResult = parties.map((p, i) => ({
+    party: p,
+    votes: votes[i],
+    district_seats: distAligned[i],
+    comp_seats: compSeats[i],
+    seats: distAligned[i] + compSeats[i]
+  }));
+  const totalVotes = votes.reduce((a, b) => a + b, 0);
+  const totalSeats = cityResult.reduce((a, r) => a + r.seats, 0);
+  cityResult.forEach(r => {
+    r.vote_pct = r.votes / totalVotes;
+    r.seat_pct = r.seats / totalSeats;
+  });
+
+  // Borough breakdown (FPTP tier only)
+  const boroughVotes = {};
+  recognised.forEach(r => {
+    const b = normBorough(r.borough);
+    if (!boroughVotes[b]) boroughVotes[b] = {};
+    boroughVotes[b][r.party] = (boroughVotes[b][r.party] || 0) + r.votes;
+  });
+  const boroughSeats = {};
+  winners.forEach(r => {
+    const b = normBorough(r.borough);
+    if (!boroughSeats[b]) boroughSeats[b] = {};
+    boroughSeats[b][r.party] = (boroughSeats[b][r.party] || 0) + 1;
+  });
+
+  // SSD table
+  const distTotals = {};
+  MMP_RAW.forEach(r => { distTotals[r.district] = (distTotals[r.district] || 0) + r.votes; });
+  const ssdTable = winners.map(r => ({
+    district: r.district,
+    borough: r.borough,
+    candidate: r.candidate,
+    party: r.party,
+    votes: r.votes,
+    vote_pct: r.votes / distTotals[r.district]
+  }));
+  ssdTable.sort((a, b) => a.borough.localeCompare(b.borough) || a.district - b.district);
+
+  // All votes including write-ins for ENP(votes)
+  const allVotes = {};
+  MMP_RAW.forEach(r => { allVotes[r.party] = (allVotes[r.party] || 0) + r.votes; });
+  const allTotal = Object.values(allVotes).reduce((a, b) => a + b, 0);
+  const allShares = {};
+  Object.entries(allVotes).forEach(([p, v]) => { allShares[p] = v / allTotal; });
+
+  return { cityResult, cityVotes, totalVotes, totalSeats, boroughVotes, boroughSeats, ssdTable, allShares, nDistricts, nComp, assemblySize };
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER FUNCTIONS
+// ══════════════════════════════════════════════════════════
+
+function renderFptp(data) {
+  const { cityResult, totalVotes, totalSeats, boroughVotes, boroughSeats, ssdTable, allShares, distTotals } = data;
+
+  // Seat data for hemicycle
+  const seatData = cityResult
+    .filter(r => r.seats > 0)
+    .sort((a, b) => b.seats - a.seats);
+
+  drawHemicycle('fptp-hemi', seatData);
+  buildLegend('fptp-legend', seatData);
+
+  // Metrics
+  const vShares = {}, sShares = {};
+  cityResult.forEach(r => { vShares[r.party] = r.vote_pct; if (r.seats > 0) sShares[r.party] = r.seat_pct; });
+  const gi = gallagherIndex(vShares, sShares);
+  const enVObs = effectiveNumber(allShares);
+  const enSObs = effectiveNumber(sShares);
+  const s1Obs = Math.max(...Object.values(sShares));
+  const s1Exp = spmS1(1, N_DISTRICTS);
+  const enSExp = spmEnSeats(1, N_DISTRICTS);
+  const enVExp = spmEnVotes(1, N_DISTRICTS);
+  document.getElementById('fptp-metrics').innerHTML = buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, false);
+
+  // Citywide table
+  renderDT('fptp-city-tbl', [
+    {label:'Party', key:'Party'},
+    {label:'Votes', key:'Votes'},
+    {label:'Vote %', key:'VotePct'},
+    {label:'Seats', key:'Seats'},
+    {label:'Seat %', key:'SeatPct'}
+  ], cityResult.filter(r => r.seats > 0).sort((a,b)=>b.seats-a.seats).map(r => ({
+    Party: r.party,
+    Votes: fmtVotes(r.votes),
+    VotePct: fmtPct(r.vote_pct),
+    Seats: r.seats,
+    SeatPct: fmtPct(r.seat_pct)
+  })), {dom: 't'});
+
+  // Borough tables
+  const boroughs = [...new Set(Object.keys(boroughVotes))].filter(b => b !== 'crossover districts');
+  document.getElementById('fptp-borough-tables').innerHTML = boroughSection(
+    [...boroughs, 'crossover districts'].filter(b => Object.keys(boroughVotes).includes(b)),
+    b => {
+      const bv = boroughVotes[b] || {}, bs = boroughSeats[b] || {};
+      const bTotal = Object.values(bv).reduce((a,c)=>a+c,0);
+      const bSTotal = Object.values(bs).reduce((a,c)=>a+c,0);
+      return Object.keys(bs).filter(p=>bs[p]>0).sort((a,e)=>bs[e]-bs[a]).map(p => ({
+        Party: p,
+        Votes: fmtVotes(bv[p]||0),
+        'Vote %': fmtPct((bv[p]||0)/bTotal),
+        Seats: bs[p]||0,
+        'Seat %': fmtPct((bs[p]||0)/bSTotal)
+      }));
+    },
+    [{label:'Party',key:'Party'},{label:'Votes',key:'Votes'},{label:'Vote %',key:'Vote %'},{label:'Seats',key:'Seats'},{label:'Seat %',key:'Seat %'}],
+    'tbl-5col'
+  );
+
+  // SSD table
+  renderDT('fptp-ssd-tbl', [
+    {label:'District', key:'district'},
+    {label:'Borough', key:'borough'},
+    {label:'Candidate', key:'candidate'},
+    {label:'Party', key:'party'},
+    {label:'Votes', key:'votesF'},
+    {label:'Vote %', key:'votePctF'}
+  ], ssdTable.map(r => ({...r, votesF: fmtVotes(r.votes), votePctF: fmtPct(r.vote_pct)})),
+  {dom: 'tp', pageLength: 25});
+}
+
+function renderOlpr(method) {
+  const data = computeOlpr(method);
+  const { results, citySeats, cityVotes, allShares } = data;
+
+  const totalSeats = Object.values(citySeats).reduce((a,b)=>a+b,0);
+  const totalVotes = Object.values(cityVotes).reduce((a,b)=>a+b,0);
+
+  const seatData = Object.entries(citySeats)
+    .filter(([,s])=>s>0)
+    .map(([party,seats])=>({party,seats}))
+    .sort((a,b)=>b.seats-a.seats);
+
+  drawHemicycle('olpr-hemi', seatData);
+  buildLegend('olpr-legend', seatData);
+
+  // Metrics
+  const vShares={}, sShares={};
+  Object.entries(cityVotes).forEach(([p,v])=>{ vShares[p]=v/totalVotes; });
+  Object.entries(citySeats).forEach(([p,s])=>{ if(s>0) sShares[p]=s/totalSeats; });
+  const gi = gallagherIndex(vShares, sShares);
+  const enVObs = effectiveNumber(allShares);
+  const enSObs = effectiveNumber(sShares);
+  const s1Obs = Math.max(...Object.values(sShares));
+  const M = Object.values(BOROUGH_SEATS_OLPR).reduce((a,b)=>a+b,0) / 5;
+  const S = Object.values(BOROUGH_SEATS_OLPR).reduce((a,b)=>a+b,0);
+  const s1Exp = spmS1(M, S);
+  const enSExp = spmEnSeats(M, S);
+  const enVExp = spmEnVotes(M, S);
+  document.getElementById('olpr-metrics').innerHTML = buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, false);
+
+  // Citywide table
+  const cityRows = Object.keys(citySeats).filter(p=>citySeats[p]>0)
+    .sort((a,b)=>citySeats[b]-citySeats[a])
+    .map(p => ({
+      Party: p,
+      Votes: fmtVotes(cityVotes[p]||0),
+      VotePct: fmtPct((cityVotes[p]||0)/totalVotes),
+      Seats: citySeats[p],
+      SeatPct: fmtPct(citySeats[p]/totalSeats)
+    }));
+  renderDT('olpr-city-tbl', [
+    {label:'Party',key:'Party'},{label:'Votes',key:'Votes'},{label:'Vote %',key:'VotePct'},
+    {label:'Seats',key:'Seats'},{label:'Seat %',key:'SeatPct'}
+  ], cityRows, {dom:'t'});
+
+  // Borough seat tables
+  const boroughNames = Object.keys(BOROUGH_SEATS_OLPR);
+  let seatHtml = '';
+  boroughNames.forEach(b => {
+    const res = results[b];
+    if (!res) return;
+    const pv = res.partyVotes;
+    const ls = res.listSummary;
+    const bTotal = Object.values(pv).reduce((a,c)=>a+c,0);
+    const bSTotal = Object.values(ls).reduce((a,c)=>a+c,0);
+    const rows = Object.keys(ls).filter(p=>ls[p]>0&&!isWriteIn(p))
+      .sort((a,c)=>ls[c]-ls[a])
+      .map(p=>({
+        Party:p, Votes:fmtVotes(pv[p]||0),
+        'Vote %':fmtPct((pv[p]||0)/bTotal),
+        Seats:ls[p], 'Seat %':fmtPct(ls[p]/bSTotal)
+      }));
+    if (rows.length===0) return;
+    seatHtml += `<div class="borough-heading">${b}</div>` + buildBoroughTable(rows,
+      [{label:'Party',key:'Party'},{label:'Votes',key:'Votes'},{label:'Vote %',key:'Vote %'},{label:'Seats',key:'Seats'},{label:'Seat %',key:'Seat %'}],
+      'tbl-5col');
+  });
+  document.getElementById('olpr-borough-seat-tables').innerHTML = seatHtml;
+
+  // Borough candidate tables
+  let candHtml = '';
+  boroughNames.forEach(b => {
+    const res = results[b];
+    if (!res) return;
+    const rows = [
+      ...res.winners.map(r=>({Candidate:r.candidate, Party:r.party, Votes:fmtVotes(r.votes)})),
+      ...res.generics.map(r=>({Candidate:r.candidate, Party:r.party, Votes:'—'}))
+    ];
+    if (rows.length===0) return;
+    candHtml += `<div class="borough-heading">${b}</div>` + buildBoroughTable(rows,
+      [{label:'Candidate',key:'Candidate'},{label:'Party',key:'Party'},{label:'Votes',key:'Votes'}],
+      'tbl-3col');
+  });
+  document.getElementById('olpr-borough-cand-tables').innerHTML = candHtml;
+}
+
+function renderMmp(assemblySize, method) {
+  const data = computeMmp(assemblySize, method);
+  const { cityResult, totalVotes, totalSeats, boroughVotes, boroughSeats, ssdTable, allShares, nDistricts, nComp } = data;
+
+  const seatData = cityResult.filter(r=>r.seats>0).sort((a,b)=>b.seats-a.seats);
+  drawHemicycle('mmp-hemi', seatData);
+  buildLegend('mmp-legend', seatData);
+
+  // Metrics
+  const vShares={}, sShares={};
+  cityResult.forEach(r=>{ vShares[r.party]=r.vote_pct; if(r.seats>0) sShares[r.party]=r.seat_pct; });
+  const gi = gallagherIndex(vShares, sShares);
+  const enVObs = effectiveNumber(allShares);
+  const enSObs = effectiveNumber(sShares);
+  const s1Obs = cityResult.filter(r=>r.seats>0).length > 0 ? Math.max(...cityResult.filter(r=>r.seats>0).map(r=>r.seat_pct)) : 0;
+  const t = nComp / assemblySize;
+  const s1Exp = spmMmpS1(nDistricts, t);
+  const enSExp = spmMmpEnSeats(nDistricts, t);
+  const enVExp = spmMmpEnVotes(nDistricts, t);
+  document.getElementById('mmp-metrics').innerHTML = buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, true);
+
+  // Citywide table
+  renderDT('mmp-city-tbl', [
+    {label:'Party',key:'Party'},{label:'Votes',key:'Votes'},{label:'Vote %',key:'VotePct'},
+    {label:'District Seats',key:'DistSeats'},{label:'Comp. Seats',key:'CompSeats'},
+    {label:'Total Seats',key:'TotalSeats'},{label:'Seat %',key:'SeatPct'}
+  ], cityResult.filter(r=>r.seats>0).sort((a,b)=>b.seats-a.seats).map(r=>({
+    Party:r.party, Votes:fmtVotes(r.votes), VotePct:fmtPct(r.vote_pct),
+    DistSeats:r.district_seats, CompSeats:r.comp_seats, TotalSeats:r.seats, SeatPct:fmtPct(r.seat_pct)
+  })), {dom:'t'});
+
+  // Borough tables
+  const boroughs = [...new Set([...Object.keys(boroughVotes), ...Object.keys(boroughSeats)])];
+  document.getElementById('mmp-borough-tables').innerHTML = boroughSection(
+    BOROUGH_ORDER.filter(b=>boroughs.includes(b)),
+    b => {
+      const bv=boroughVotes[b]||{}, bs=boroughSeats[b]||{};
+      const bTotal=Object.values(bv).reduce((a,c)=>a+c,0);
+      const bSTotal=Object.values(bs).reduce((a,c)=>a+c,0);
+      return Object.keys(bs).filter(p=>bs[p]>0).sort((a,e)=>bs[e]-bs[a]).map(p=>({
+        Party:p, Votes:fmtVotes(bv[p]||0),
+        'Vote %':fmtPct((bv[p]||0)/bTotal),
+        'District Seats':bs[p]||0, 'Seat %':fmtPct((bs[p]||0)/bSTotal)
+      }));
+    },
+    [{label:'Party',key:'Party'},{label:'Votes',key:'Votes'},{label:'Vote %',key:'Vote %'},{label:'District Seats',key:'District Seats'},{label:'Seat %',key:'Seat %'}],
+    'tbl-5col-mmp'
+  );
+
+  // SSD table
+  renderDT('mmp-ssd-tbl', [
+    {label:'District',key:'district'},{label:'Borough',key:'borough'},
+    {label:'Candidate',key:'candidate'},{label:'Party',key:'party'},
+    {label:'Votes',key:'votesF'},{label:'Vote %',key:'votePctF'}
+  ], ssdTable.map(r=>({...r, votesF:fmtVotes(r.votes), votePctF:fmtPct(r.vote_pct)})),
+  {dom:'tp', pageLength:25});
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+
+function initApp() {
+  // Render FPTP once (static)
+  const fptpData = computeFptp();
+  renderFptp(fptpData);
+
+  // Render OLPR with default method
+  renderOlpr('dhondt');
+
+  // Render MMP with defaults
+  renderMmp(71, 'dhondt');
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // OLPR method change
+  document.querySelectorAll('input[name="olpr-method"]').forEach(r => {
+    r.addEventListener('change', () => renderOlpr(r.value));
+  });
+
+  // MMP slider
+  const mmpSlider = document.getElementById('mmp-size');
+  const mmpVal = document.getElementById('mmp-size-val');
+  mmpSlider.addEventListener('input', () => { mmpVal.textContent = mmpSlider.value; });
+  mmpSlider.addEventListener('change', () => {
+    const method = document.querySelector('input[name="mmp-method"]:checked').value;
+    renderMmp(parseInt(mmpSlider.value), method);
+  });
+
+  // MMP method change
+  document.querySelectorAll('input[name="mmp-method"]').forEach(r => {
+    r.addEventListener('change', () => {
+      renderMmp(parseInt(mmpSlider.value), r.value);
+    });
+  });
+}
+
+// Start loading
+loadData().catch(err => {
+  document.getElementById('loading-screen').innerHTML =
+    '<p style="color:#FF6319;padding:2rem;">Error loading data: ' + err.message + '</p>';
+});
+</script>
+</body>
+</html>
