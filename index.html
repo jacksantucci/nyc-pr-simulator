@@ -51,6 +51,7 @@ input[type=range] { accent-color: var(--nyc-blue); width: 220px; max-width: 100%
 .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; }
 .metric-card { background: var(--nyc-cream); border: 1px solid var(--border); border-left: 4px solid var(--nyc-orange); border-radius: 6px; padding: 0.6rem 0.8rem; }
 .metric-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.2rem; line-height: 1.3; }
+.metrics-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--nyc-blue); margin: 0.8rem 0 0.4rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); grid-column: 1 / -1; }
 .metric-value { font-size: 1.35rem; font-weight: 700; color: var(--nyc-blue); font-family: 'Playfair Display', Georgia, serif; }
 .metric-note { font-size: 0.7rem; font-style: italic; color: var(--text-muted); margin-top: 0.1rem; }
 
@@ -513,6 +514,7 @@ function buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, experime
   const expTag = experimental ? '<span class="metric-note">experimental</span>' : '';
   return `
   <div class="metrics-grid">
+    <div class="metrics-section-label">Proportionality</div>
     <div class="metric-card">
       <div class="metric-label">Gallagher Index</div>
       <div class="metric-value">${fmtNum(gi)}%</div>
@@ -526,6 +528,7 @@ function buildMetrics(gi, s1Exp, s1Obs, enVExp, enVObs, enSExp, enSObs, experime
       <div class="metric-label">Lgst. party seat % — observed</div>
       <div class="metric-value">${fmtPct2(s1Obs)}</div>
     </div>
+    <div class="metrics-section-label">Fragmentation</div>
     <div class="metric-card">
       <div class="metric-label">Eff. N parties (votes) — SPM expected</div>
       <div class="metric-value">${fmtNum(enVExp)}</div>
