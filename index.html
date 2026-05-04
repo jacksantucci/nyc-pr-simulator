@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Simulating Proportional Representation in NYC</title>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -104,11 +105,16 @@ input[type=range] { accent-color: var(--nyc-blue); width: 220px; max-width: 100%
 .dataTables_wrapper .dataTables_info { font-size: 0.78rem; color: var(--text-muted); }
 .dataTables_length select, .dataTables_filter input { font-size: 0.82rem; }
 table.dataTable thead th, table.dataTable thead td { text-align: left !important; }
-table.dataTable tbody td { text-align: left !important; }
+table.dataTable tbody td { text-align: left !important; background: #ffffff; }
+table.dataTable tbody tr.odd { background: transparent !important; }
+table.dataTable tbody tr.even { background: transparent !important; }
+table.dataTable tbody tr.odd > * { box-shadow: none !important; }
+table.dataTable tbody tr.even > * { box-shadow: none !important; }
 table.dataTable { font-size: 0.84rem; }
 table.dataTable thead th { background: var(--nyc-dark) !important; color: white !important; font-size: 0.78rem !important; text-transform: uppercase !important; letter-spacing: 0.04em !important; }
-table.dataTable.stripe tbody tr.odd { background: #ffffff; }
-table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
+table.dataTable tbody tr.odd td { background: #ffffff !important; }
+table.dataTable tbody tr.even td { background: #F9F6F0 !important; }
+table.dataTable tbody tr td { background-color: inherit; }
 
 /* ── More Info tab ── */
 .more-info-wrap { max-width: 720px; margin: 0 auto; padding: 0.5rem; }
@@ -181,7 +187,7 @@ table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
 
   <div class="pr-card">
     <div class="card-title">Citywide Seat Totals</div>
-    <div class="tbl-wrap"><table id="fptp-city-tbl" class="display stripe" style="width:100%"></table></div>
+    <div class="tbl-wrap"><table id="fptp-city-tbl" class="display" style="width:100%"></table></div>
   </div>
 
   <div class="pr-card">
@@ -191,7 +197,7 @@ table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
 
   <div class="pr-card">
     <div class="card-title">Single-Seat District Winners</div>
-    <div class="tbl-wrap"><table id="fptp-ssd-tbl" class="display stripe" style="width:100%"></table></div>
+    <div class="tbl-wrap"><table id="fptp-ssd-tbl" class="display" style="width:100%"></table></div>
   </div>
 
 </div>
@@ -224,7 +230,7 @@ table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
 
   <div class="pr-card">
     <div class="card-title">Citywide Seat Totals</div>
-    <div class="tbl-wrap"><table id="olpr-city-tbl" class="display stripe" style="width:100%"></table></div>
+    <div class="tbl-wrap"><table id="olpr-city-tbl" class="display" style="width:100%"></table></div>
   </div>
 
   <div class="pr-card">
@@ -280,7 +286,7 @@ table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
 
   <div class="pr-card">
     <div class="card-title">Citywide Seat Totals</div>
-    <div class="tbl-wrap"><table id="mmp-city-tbl" class="display stripe" style="width:100%"></table></div>
+    <div class="tbl-wrap"><table id="mmp-city-tbl" class="display" style="width:100%"></table></div>
   </div>
 
   <div class="pr-card">
@@ -290,7 +296,7 @@ table.dataTable.stripe tbody tr.even { background: var(--nyc-cream); }
 
   <div class="pr-card">
     <div class="card-title">Single-Seat District Winners</div>
-    <div class="tbl-wrap"><table id="mmp-ssd-tbl" class="display stripe" style="width:100%"></table></div>
+    <div class="tbl-wrap"><table id="mmp-ssd-tbl" class="display" style="width:100%"></table></div>
   </div>
 
 </div>
@@ -612,9 +618,12 @@ function buildLegend(legendId, seatData) {
 function buildBoroughTable(data, cols, cls) {
   if (!data || data.length === 0) return '';
   const headers = cols.map(c => `<th>${c.label}</th>`).join('');
-  const rows = data.map(row =>
-    '<tr>' + cols.map(c => `<td>${row[c.key] ?? ''}</td>`).join('') + '</tr>'
-  ).join('');
+  const rows = data.map((row, i) => {
+    const bg = i % 2 === 0 ? '#ffffff' : '#F9F6F0';
+    return '<tr>' + cols.map(c =>
+      `<td style="background:${bg} !important;padding:0.3rem 0.5rem;text-align:left;vertical-align:middle;border-bottom:1px solid #e0dcd4;">${row[c.key] ?? ''}</td>`
+    ).join('') + '</tr>';
+  }).join('');
   return `<div class="tbl-wrap"><table class="${cls}"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -641,6 +650,10 @@ function renderDT(tableId, cols, data, extraOpts) {
     pageLength: 25,
     order: [],
     scrollX: true,
+    rowCallback: function(row, data, index) {
+      const bg = index % 2 === 0 ? '#ffffff' : '#F9F6F0';
+      $('td', row).css('background', bg);
+    },
     ...extraOpts
   });
 }
@@ -1132,6 +1145,10 @@ function initApp() {
       document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // Recalculate DataTables column widths after tab becomes visible
+      Object.values(dtInstances).forEach(dt => {
+        try { dt.columns.adjust().draw(false); } catch(e) {}
+      });
     });
   });
 
